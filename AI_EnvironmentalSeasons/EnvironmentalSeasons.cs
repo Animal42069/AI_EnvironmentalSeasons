@@ -12,7 +12,7 @@ namespace AI_EnvironmentalSeasons
 
     public class EnvironmentalSeasons : BaseUnityPlugin
     {
-        public const string VERSION = "1.0.0.0";
+        public const string VERSION = "1.0.1.0";
         internal const string GUID = "animal42069.aienvironmentalseasons";
 
         internal static Harmony harmony;
@@ -136,10 +136,7 @@ namespace AI_EnvironmentalSeasons
 
             if (timeUpdated)
             {
-                __instance.OldTime.Days = gameTime.Days;
-                __instance.OldTime.Hours = gameTime.Hours;
-                __instance.OldTime.Minutes = gameTime.Minutes;
-                __instance.OldTime.Seconds = gameTime.Seconds;
+                __instance.SetTimeToEnviroTime(__instance.OldTime, gameTime);
 
                 if (dateLabel != null)
                     dateLabel.text = newTime.ToString("D");
@@ -156,6 +153,12 @@ namespace AI_EnvironmentalSeasons
             }
 
             return false;
+        }
+
+        [HarmonyPostfix, HarmonyPatch(typeof(AIProject.EnvironmentSimulator), "SetTimeToEnviroTime")]
+        internal static void EnvironmentSimulator_SetTimeToEnviroTime(EnviroTime time, EnviroTime newTime)
+        {
+            time.Years = newTime.Years;
         }
 
         [HarmonyPrefix, HarmonyPatch(typeof(AIProject.EnvironmentSimulator), "RefreshTemperatureValue")]
@@ -316,6 +319,15 @@ namespace AI_EnvironmentalSeasons
             enviroSky.GameTime.Latitude = _location_latitute.Value;
             enviroSky.GameTime.Longitude = _location_longitude.Value;
             enviroSky.GameTime.utcOffset = _location_utcOffset.Value;
+        }
+
+        internal static void SetTimeToEnviroTime(EnviroTime time, EnviroTime newTime)
+        {
+            time.Years = newTime.Years;
+            time.Days = newTime.Days;
+            time.Hours = newTime.Hours;
+            time.Minutes = newTime.Minutes;
+            time.Seconds = newTime.Seconds;
         }
     }
 }
