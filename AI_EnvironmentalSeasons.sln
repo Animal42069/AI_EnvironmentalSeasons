@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30320.27
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AI_EnvironmentalSeasons", "AI_EnvironmentalSeasons\AI_EnvironmentalSeasons.csproj", "{4532E0BC-C5B7-4C3E-9132-73C39638ABC1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4532E0BC-C5B7-4C3E-9132-73C39638ABC1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4532E0BC-C5B7-4C3E-9132-73C39638ABC1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4532E0BC-C5B7-4C3E-9132-73C39638ABC1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4532E0BC-C5B7-4C3E-9132-73C39638ABC1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0B982C91-05CF-4B44-B402-AB68ABB51D8F}
+	EndGlobalSection
+EndGlobal
