@@ -6,7 +6,7 @@ This plugin fixes several issues with AI Shoujo's environmental simulator.  Illu
 # Changes
 Latitude and Longitude set to an island off the coast of Okinawa (configurable)<br>
 New games will begin in early spring of the current year (configurable), games created before this plugin will also set their date to the same.<br>
-Days will not correctly increment.  The sun will no longer rise in the exact same spot every day.  Days will get longer in the summer and shorter in the winter.<br>
+Days will now correctly increment.  The sun will no longer rise in the exact same spot every day.  Days will get longer in the summer and shorter in the winter.<br>
 Temperature where girls get cold reduced to 18 degrees C (configurable).  Default was 23 degrees C which didn't seem right.<br>
 Temperature where girls get hot reduced to 27 degrees C (configurable).  Default was 30 degrees C which didn't seem right.<br>
 Cellphone UI will display the current day.<br>
