@@ -1,4 +1,5 @@
-﻿using BepInEx;
+﻿using AIProject;
+using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
 using System;
@@ -12,7 +13,7 @@ namespace AI_EnvironmentalSeasons
 
     public class EnvironmentalSeasons : BaseUnityPlugin
     {
-        public const string VERSION = "1.0.1.0";
+        public const string VERSION = "1.1.0.0";
         internal const string GUID = "animal42069.aienvironmentalseasons";
 
         internal static Harmony harmony;
@@ -42,7 +43,6 @@ namespace AI_EnvironmentalSeasons
         internal static readonly List<(int, int)> monthlyDayLightTime = new List<(int, int)> { (12, 37), (12, 42), (12, 37), (12, 28), (12, 24), (12, 28), (12, 34), (12, 32), (12, 23), (12, 14), (12, 12), (12, 23) };
         internal static readonly List<(int, int)> monthlyNightLightTime = new List<(int, int)> { (17, 57), (18, 20), (18, 36), (18, 52), (19, 08), (19, 22), (19, 23), (19, 04), (18, 32), (18, 00), (17, 38), (17, 38) };
 
-
         internal static EnviroSky enviroSky;
         internal static UnityEngine.UI.Text dateLabel;
 
@@ -65,13 +65,22 @@ namespace AI_EnvironmentalSeasons
             harmony.PatchAll(typeof(EnvironmentalSeasons));
         }
 
-        [HarmonyPrefix, HarmonyPatch(typeof(AIProject.EnvironmentSimulator), "OnTimeUpdate")]
-        internal static bool EnvironmentSimulator_OnTimeUpdate(AIProject.EnvironmentSimulator __instance)
+        [HarmonyPrefix, HarmonyPatch(typeof(EnvironmentSimulator), "OnTimeUpdate")]
+        internal static bool EnvironmentSimulator_OnTimeUpdate(EnvironmentSimulator __instance)
         {
             if (__instance._enviroSky.GameTime.Years <= 1)
             {
-                __instance._enviroSky.GameTime.Years = _start_year.Value;
-                __instance._enviroSky.GameTime.Days = _start_day.Value;
+                var loadDateTime = Manager.Game.Instance.Data.AutoData.Environment.Time;
+                if (loadDateTime._year == 1)
+                {
+                    __instance._enviroSky.GameTime.Years = _start_year.Value;
+                    __instance._enviroSky.GameTime.Days = _start_day.Value;
+                }
+                else
+                {
+                    __instance._enviroSky.GameTime.Years = loadDateTime._year;
+                    __instance._enviroSky.GameTime.Days = GetDayOfYear(loadDateTime._day, loadDateTime._month, loadDateTime._year);
+                }
 
                 __instance.SetTimeToEnviroTime(__instance.OldDayUpdatedTime, __instance._enviroSky.GameTime);
                 __instance.SetTimeToEnviroTime(__instance.OldHourUpdatedTime, __instance._enviroSky.GameTime);
@@ -144,7 +153,7 @@ namespace AI_EnvironmentalSeasons
 
             int newMonth = GetMonthOfYear(gameTime.Days, gameTime.Years);
             AIProject.TimeZone newTimeZone = __instance._tempTimeZone;
-            if (currentMonth != newMonth/* || currentTimeZone != newTimeZone*/)
+            if (currentMonth != newMonth)
             {
                 currentMonth = newMonth;
                 currentTimeZone = newTimeZone;
@@ -155,13 +164,13 @@ namespace AI_EnvironmentalSeasons
             return false;
         }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(AIProject.EnvironmentSimulator), "SetTimeToEnviroTime")]
+        [HarmonyPostfix, HarmonyPatch(typeof(EnvironmentSimulator), "SetTimeToEnviroTime")]
         internal static void EnvironmentSimulator_SetTimeToEnviroTime(EnviroTime time, EnviroTime newTime)
         {
             time.Years = newTime.Years;
         }
 
-        [HarmonyPrefix, HarmonyPatch(typeof(AIProject.EnvironmentSimulator), "RefreshTemperatureValue")]
+        [HarmonyPrefix, HarmonyPatch(typeof(EnvironmentSimulator), "RefreshTemperatureValue")]
         internal static bool EnvironmentSimulator_RefreshTemperatureValue(AIProject.EnvironmentSimulator __instance)
         {
             AIProject.Threshold range = __instance._environmentProfile.WeatherTemperatureRange.GetRange(__instance._tempTimeZone, __instance._weather);
@@ -169,10 +178,31 @@ namespace AI_EnvironmentalSeasons
             return false;
         }
 
+        [HarmonyPostfix, HarmonyPatch(typeof(AIProject.SaveData.Environment), "SetSimulation")]
+        internal static void Environment_SetSimulation(AIProject.SaveData.Environment __instance)
+        {
+            if (enviroSky == null)
+                return;
+
+            int day = enviroSky.GameTime.Days;
+            int year = enviroSky.GameTime.Years;
+            int month = GetDayAndMonthOfYear(ref day, year);
+
+            __instance.Time = new AIProject.SaveData.Environment.SerializableDateTime(year, month, day, enviroSky.GameTime.Hours, enviroSky.GameTime.Minutes, enviroSky.GameTime.Seconds);
+        }
+
         [HarmonyPostfix, HarmonyPatch(typeof(EnviroSky), "AssignAndStart")]
         internal static void EnviroSky_AssignAndStart(EnviroSky __instance)
         {
             enviroSky = __instance;
+
+            int day = Manager.Game.Instance.Environment.Time.Day;
+            int month = Manager.Game.Instance.Environment.Time.Month;
+            int year = Manager.Game.Instance.Environment.Time.Year;
+
+            enviroSky.GameTime.Days = GetDayOfYear(day, month, year);
+            enviroSky.GameTime.Years = year;
+
             UpdateWorldPosition();
         }
 
@@ -207,7 +237,16 @@ namespace AI_EnvironmentalSeasons
             weatherObject.transform.localPosition = new Vector3(0, 150, 0);
         }
 
-        internal static void UpdateEnvironmentProfile(AIProject.EnvironmentSimulator environment)
+        [HarmonyPrefix, HarmonyPatch(typeof(EnvironmentSimulator), "Now", MethodType.Getter)]
+        public static bool EnvironmentSimulator_Now(EnvironmentSimulator __instance, ref DateTime __result)
+        {
+            EnviroTime gameTime = __instance._enviroSky.GameTime;
+            __result = new DateTime(1, 1, 1, gameTime.Hours, gameTime.Minutes, gameTime.Seconds);
+
+            return false;
+        }
+
+        internal static void UpdateEnvironmentProfile(EnvironmentSimulator environment)
         {
             if (currentMonth < 1 || currentMonth > 12)
                 return;
@@ -239,7 +278,7 @@ namespace AI_EnvironmentalSeasons
 
             UpdateEnvironmentWeatherProfile(environment);
         }
-        internal static void UpdateEnvironmentWeatherProfile(AIProject.EnvironmentSimulator environment)
+        internal static void UpdateEnvironmentWeatherProfile(EnvironmentSimulator environment)
         {
             if (currentMonth < 1 || currentMonth > 12)
                 return;
@@ -309,6 +348,17 @@ namespace AI_EnvironmentalSeasons
             }
 
             return month;
+        }
+
+        internal static int GetDayOfYear(int day, int month, int year)
+        {
+            int dayOfYear = 0;
+
+            while (month > 1)
+                dayOfYear += DateTime.DaysInMonth(year, month--);
+
+            dayOfYear += day;
+            return dayOfYear;
         }
 
         internal static void UpdateWorldPosition()
