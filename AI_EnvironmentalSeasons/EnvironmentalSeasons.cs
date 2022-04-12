@@ -13,7 +13,7 @@ namespace AI_EnvironmentalSeasons
 
     public class EnvironmentalSeasons : BaseUnityPlugin
     {
-        public const string VERSION = "1.1.0.0";
+        public const string VERSION = "1.1.1.0";
         internal const string GUID = "animal42069.aienvironmentalseasons";
 
         internal static Harmony harmony;
@@ -25,9 +25,9 @@ namespace AI_EnvironmentalSeasons
         internal static ConfigEntry<int> _hot_threshold;
         internal static ConfigEntry<int> _start_year;
         internal static ConfigEntry<int> _start_day;
+        internal static ConfigEntry<float> _length_of_day;
 
         internal static int currentMonth = 0;
-        internal static AIProject.TimeZone currentTimeZone = AIProject.TimeZone.Day;
 
         internal static readonly List<int> monthlyHighDayTemperature = new List<int> { 23, 24, 26, 28, 30, 33, 33, 33, 33, 31, 29, 25 };
         internal static readonly List<int> monthlyLowDayTemperature = new List<int> { 15, 15, 16, 19, 22, 25, 29, 29, 28, 24, 20, 16 };
@@ -44,6 +44,7 @@ namespace AI_EnvironmentalSeasons
         internal static readonly List<(int, int)> monthlyNightLightTime = new List<(int, int)> { (17, 57), (18, 20), (18, 36), (18, 52), (19, 08), (19, 22), (19, 23), (19, 04), (18, 32), (18, 00), (17, 38), (17, 38) };
 
         internal static EnviroSky enviroSky;
+        internal static EnvironmentSimulator environmentSimulator;
         internal static UnityEngine.UI.Text dateLabel;
 
         public void Awake()
@@ -60,6 +61,7 @@ namespace AI_EnvironmentalSeasons
 
             _start_year = Config.Bind("Time", "Starting Year", DateTime.Now.Year, "Year that a new game starts on");
             _start_day = Config.Bind("Time", "Starting Day", 90, "Day that a new game starts on");
+            _length_of_day = Config.Bind("Time", "Length of Day", 80f, "Number of real minutes per game day");
 
             harmony = new Harmony("EnvironmentalSeasons");
             harmony.PatchAll(typeof(EnvironmentalSeasons));
@@ -70,6 +72,8 @@ namespace AI_EnvironmentalSeasons
         {
             if (__instance._enviroSky.GameTime.Years <= 1)
             {
+                environmentSimulator = __instance;
+
                 var loadDateTime = Manager.Game.Instance.Data.AutoData.Environment.Time;
                 if (loadDateTime._year == 1)
                 {
@@ -91,6 +95,8 @@ namespace AI_EnvironmentalSeasons
                 __instance.OldTime.Hours = __instance._enviroSky.GameTime.Hours;
                 __instance.OldTime.Minutes = __instance._enviroSky.GameTime.Minutes;
                 __instance.OldTime.Seconds = __instance._enviroSky.GameTime.Seconds;
+
+                UpdateDayLength();
 
                 if (dateLabel != null)
                     dateLabel.text = GetDateTime(__instance._enviroSky.GameTime).ToString("D");
@@ -151,15 +157,7 @@ namespace AI_EnvironmentalSeasons
                     dateLabel.text = newTime.ToString("D");
             }
 
-            int newMonth = GetMonthOfYear(gameTime.Days, gameTime.Years);
-            AIProject.TimeZone newTimeZone = __instance._tempTimeZone;
-            if (currentMonth != newMonth)
-            {
-                currentMonth = newMonth;
-                currentTimeZone = newTimeZone;
-
-                UpdateEnvironmentProfile(__instance);
-            }
+            UpdateEnvironmentProfile(__instance, GetMonthOfYear(gameTime.Days, gameTime.Years));
 
             return false;
         }
@@ -171,9 +169,9 @@ namespace AI_EnvironmentalSeasons
         }
 
         [HarmonyPrefix, HarmonyPatch(typeof(EnvironmentSimulator), "RefreshTemperatureValue")]
-        internal static bool EnvironmentSimulator_RefreshTemperatureValue(AIProject.EnvironmentSimulator __instance)
+        internal static bool EnvironmentSimulator_RefreshTemperatureValue(EnvironmentSimulator __instance)
         {
-            AIProject.Threshold range = __instance._environmentProfile.WeatherTemperatureRange.GetRange(__instance._tempTimeZone, __instance._weather);
+            Threshold range = __instance._environmentProfile.WeatherTemperatureRange.GetRange(__instance._tempTimeZone, __instance._weather);
             __instance.SetTemperatureValue(range.RandomValue);
             return false;
         }
@@ -246,72 +244,72 @@ namespace AI_EnvironmentalSeasons
             return false;
         }
 
-        internal static void UpdateEnvironmentProfile(EnvironmentSimulator environment)
+        internal static void UpdateEnvironmentProfile(EnvironmentSimulator environment, int newMonth)
         {
-            if (currentMonth < 1 || currentMonth > 12)
+            if (currentMonth == newMonth)
                 return;
 
-            environment._environmentProfile._temperatureBorder._maxDegree = monthlyHighDayTemperature[currentMonth];
-            environment._environmentProfile._temperatureBorder._minDegree = monthlyLowNightTemperature[currentMonth];
+            currentMonth = newMonth;
+
+            environment._environmentProfile._temperatureBorder._maxDegree = monthlyHighDayTemperature[newMonth];
+            environment._environmentProfile._temperatureBorder._minDegree = monthlyLowNightTemperature[newMonth];
 
             environment._environmentProfile._temperatureBorder._highBorder = _hot_threshold.Value;
             environment._environmentProfile._temperatureBorder._lowBorder = _cold_threshold.Value;
 
-            environment._environmentProfile._morningTime._hour = monthlyMorningTime[currentMonth].Item1;
-            environment._environmentProfile._morningTime._minute = monthlyMorningTime[currentMonth].Item2;
-            environment._environmentProfile._dayTime._hour = monthlyDayTime[currentMonth].Item1;
-            environment._environmentProfile._dayTime._minute = monthlyDayTime[currentMonth].Item2;
-            environment._environmentProfile._nightTime._hour = monthlyNightTime[currentMonth].Item1;
-            environment._environmentProfile._nightTime._minute = monthlyNightTime[currentMonth].Item2;
+            environment._environmentProfile._morningTime._hour = monthlyMorningTime[newMonth].Item1;
+            environment._environmentProfile._morningTime._minute = monthlyMorningTime[newMonth].Item2;
+            environment._environmentProfile._dayTime._hour = monthlyDayTime[newMonth].Item1;
+            environment._environmentProfile._dayTime._minute = monthlyDayTime[newMonth].Item2;
+            environment._environmentProfile._nightTime._hour = monthlyNightTime[newMonth].Item1;
+            environment._environmentProfile._nightTime._minute = monthlyNightTime[newMonth].Item2;
 
-            environment._environmentProfile._lightMorningTime._hour = monthlyMorningLightTime[currentMonth].Item1;
-            environment._environmentProfile._lightMorningTime._minute = monthlyMorningLightTime[currentMonth].Item2;
-            environment._environmentProfile._lightDayTime._hour = monthlyDayLightTime[currentMonth].Item1;
-            environment._environmentProfile._lightDayTime._minute = monthlyDayLightTime[currentMonth].Item2;
-            environment._environmentProfile._lightNightTime._hour = monthlyNightLightTime[currentMonth].Item1;
-            environment._environmentProfile._lightNightTime._minute = monthlyNightLightTime[currentMonth].Item2;
+            environment._environmentProfile._lightMorningTime._hour = monthlyMorningLightTime[newMonth].Item1;
+            environment._environmentProfile._lightMorningTime._minute = monthlyMorningLightTime[newMonth].Item2;
+            environment._environmentProfile._lightDayTime._hour = monthlyDayLightTime[newMonth].Item1;
+            environment._environmentProfile._lightDayTime._minute = monthlyDayLightTime[newMonth].Item2;
+            environment._environmentProfile._lightNightTime._hour = monthlyNightLightTime[newMonth].Item1;
+            environment._environmentProfile._lightNightTime._minute = monthlyNightLightTime[newMonth].Item2;
 
-            environment._environmentProfile._weatherTemperatureRange._dayTime._hour = monthlyDayTime[currentMonth].Item1;
-            environment._environmentProfile._weatherTemperatureRange._dayTime._minute = monthlyDayTime[currentMonth].Item2;
-            environment._environmentProfile._weatherTemperatureRange._nightTime._hour = monthlyNightTime[currentMonth].Item1;
-            environment._environmentProfile._weatherTemperatureRange._nightTime._minute = monthlyNightTime[currentMonth].Item2;
+            environment._environmentProfile._weatherTemperatureRange._dayTime._hour = monthlyDayTime[newMonth].Item1;
+            environment._environmentProfile._weatherTemperatureRange._dayTime._minute = monthlyDayTime[newMonth].Item2;
+            environment._environmentProfile._weatherTemperatureRange._nightTime._hour = monthlyNightTime[newMonth].Item1;
+            environment._environmentProfile._weatherTemperatureRange._nightTime._minute = monthlyNightTime[newMonth].Item2;
 
-            UpdateEnvironmentWeatherProfile(environment);
+            UpdateEnvironmentWeatherProfile(environment, newMonth);
         }
-        internal static void UpdateEnvironmentWeatherProfile(EnvironmentSimulator environment)
-        {
-            if (currentMonth < 1 || currentMonth > 12)
-                return;
 
-            int maxDayTemp = monthlyHighDayTemperature[currentMonth];
-            int minDayTemp = monthlyLowDayTemperature[currentMonth];
+        internal static void UpdateEnvironmentWeatherProfile(EnvironmentSimulator environment, int newMonth)
+        {
+            int maxDayTemp = monthlyHighDayTemperature[newMonth];
+            int minDayTemp = monthlyLowDayTemperature[newMonth];
             int midDayTemp = (maxDayTemp + minDayTemp) / 2 + (maxDayTemp + minDayTemp) % 2;
             int midHighDayTemp = (maxDayTemp + midDayTemp) / 2 + (maxDayTemp + midDayTemp) % 2;
             int midLowDayTemp = (midDayTemp + minDayTemp) / 2 + (midDayTemp + minDayTemp) % 2;
 
-            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._clearRange = new AIProject.Threshold(midDayTemp, maxDayTemp);
-            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._cloud1Range = new AIProject.Threshold(midLowDayTemp, midHighDayTemp);
-            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._cloud2Range = new AIProject.Threshold(midLowDayTemp, midHighDayTemp);
-            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._cloud3Range = new AIProject.Threshold(minDayTemp, midHighDayTemp);
-            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._cloud4Range = new AIProject.Threshold(minDayTemp, midHighDayTemp);
-            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._fogRange = new AIProject.Threshold(minDayTemp, midDayTemp);
-            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._rainRange = new AIProject.Threshold(minDayTemp, midDayTemp);
-            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._stormRange = new AIProject.Threshold(minDayTemp, midLowDayTemp);
+            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._clearRange = new Threshold(midDayTemp, maxDayTemp);
+            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._cloud1Range = new Threshold(midLowDayTemp, midHighDayTemp);
+            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._cloud2Range = new Threshold(midLowDayTemp, midHighDayTemp);
+            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._cloud3Range = new Threshold(minDayTemp, midHighDayTemp);
+            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._cloud4Range = new Threshold(minDayTemp, midHighDayTemp);
+            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._fogRange = new Threshold(minDayTemp, midDayTemp);
+            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._rainRange = new Threshold(minDayTemp, midDayTemp);
+            environment._environmentProfile._weatherTemperatureRange._dayTimeRange._stormRange = new Threshold(minDayTemp, midLowDayTemp);
 
-            int maxNightTemp = monthlyHighNightTemperature[currentMonth];
-            int minNightTemp = monthlyLowNightTemperature[currentMonth];
+            int maxNightTemp = monthlyHighNightTemperature[newMonth];
+            int minNightTemp = monthlyLowNightTemperature[newMonth];
             int midNightTemp = (maxNightTemp + minNightTemp) / 2 + (maxNightTemp + minNightTemp) % 2;
             int midHighNightTemp = (maxNightTemp + midNightTemp) / 2 + (maxNightTemp + midNightTemp) % 2;
             int midLowNightTemp = (midNightTemp + minNightTemp) / 2 + (midNightTemp + minNightTemp) % 2;
 
-            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._clearRange = new AIProject.Threshold(midNightTemp, maxNightTemp);
-            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._cloud1Range = new AIProject.Threshold(midLowNightTemp, midHighNightTemp);
-            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._cloud2Range = new AIProject.Threshold(midLowNightTemp, midHighNightTemp);
-            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._cloud3Range = new AIProject.Threshold(minNightTemp, midHighNightTemp);
-            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._cloud4Range = new AIProject.Threshold(minNightTemp, midHighNightTemp);
-            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._fogRange = new AIProject.Threshold(minNightTemp, midNightTemp);
-            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._rainRange = new AIProject.Threshold(minNightTemp, midNightTemp);
-            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._stormRange = new AIProject.Threshold(minNightTemp, midLowNightTemp);
+            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._clearRange = new Threshold(midNightTemp, maxNightTemp);
+            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._cloud1Range = new Threshold(midLowNightTemp, midHighNightTemp);
+            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._cloud2Range = new Threshold(midLowNightTemp, midHighNightTemp);
+            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._cloud3Range = new Threshold(minNightTemp, midHighNightTemp);
+            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._cloud4Range = new Threshold(minNightTemp, midHighNightTemp);
+            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._fogRange = new Threshold(minNightTemp, midNightTemp);
+            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._rainRange = new Threshold(minNightTemp, midNightTemp);
+            environment._environmentProfile._weatherTemperatureRange._nightTimeRange._stormRange = new Threshold(minNightTemp, midLowNightTemp);
         }
 
         internal static DateTime GetDateTime(EnviroTime time)
@@ -378,6 +376,14 @@ namespace AI_EnvironmentalSeasons
             time.Hours = newTime.Hours;
             time.Minutes = newTime.Minutes;
             time.Seconds = newTime.Seconds;
+        }
+
+        internal static void UpdateDayLength()
+        {
+            if (environmentSimulator == null)
+                return;
+
+            environmentSimulator.EnvironmentProfile.DayLengthInMinute = _length_of_day.Value / 2;
         }
     }
 }
