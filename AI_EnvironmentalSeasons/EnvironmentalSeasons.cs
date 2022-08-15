@@ -2,6 +2,7 @@
 using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
+using Manager;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -13,7 +14,7 @@ namespace AI_EnvironmentalSeasons
 
     public class EnvironmentalSeasons : BaseUnityPlugin
     {
-        public const string VERSION = "1.1.1.0";
+        public const string VERSION = "1.1.2.0";
         internal const string GUID = "animal42069.aienvironmentalseasons";
 
         internal static Harmony harmony;
@@ -70,11 +71,15 @@ namespace AI_EnvironmentalSeasons
         [HarmonyPrefix, HarmonyPatch(typeof(EnvironmentSimulator), "OnTimeUpdate")]
         internal static bool EnvironmentSimulator_OnTimeUpdate(EnvironmentSimulator __instance)
         {
+            if (__instance._enviroSky == null || __instance._enviroSky.GameTime == null)
+                return true;
+
             if (__instance._enviroSky.GameTime.Years <= 1)
             {
                 environmentSimulator = __instance;
 
-                var loadDateTime = Manager.Game.Instance.Data.AutoData.Environment.Time;
+                var loadDateTime = Game.Instance.Data.AutoData.Environment.Time;
+
                 if (loadDateTime._year == 1)
                 {
                     __instance._enviroSky.GameTime.Years = _start_year.Value;
